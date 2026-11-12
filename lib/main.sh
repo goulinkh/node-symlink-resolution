@@ -1,5 +1,16 @@
 # Sourced by ../run.sh: sets up the runtimes, runs each example once per
-# runtime in a fresh root directory, and prints the results side by side.
+# runtime in a fresh root directory, $ROOT, and prints the results side by
+# side.
+#
+# Each example directory has files/, copied into $ROOT, and checks.sh, which
+# uses these commands:
+#
+#   title TEXT, intro TEXT         the heading and the description
+#   step TEXT COMMAND              changes the files; TEXT is what is shown
+#   check LABEL EXPECTED COMMAND   runs COMMAND, which works or fails.
+#                                  EXPECTED is one outcome for every runtime,
+#                                  or one per group: 'debian=works upstream=fails'
+#   note TEXT                      a line of the explanation after the results
 
 label_width=32
 name_width=7

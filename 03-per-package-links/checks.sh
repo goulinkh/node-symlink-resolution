@@ -1,5 +1,5 @@
 # Read by ../lib/main.sh and ../lib/run-checks.sh. The commands used here are
-# explained in ../README.md, under "How an example is written".
+# described at the top of ../lib/main.sh.
 
 title 'Per-package links: each package links its own dependencies'
 intro 'foo, bar and baz are installed in /usr/share/nodejs. bar depends on'

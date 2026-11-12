@@ -46,7 +46,7 @@ Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'foo' imported from $ROOT/opt/
   ignores it too.
 - Debian and Ubuntu's Node.js finds `foo` for `require()` even without
   `NODE_PATH`, from any directory, because it is patched to search
-  `/usr/share/nodejs` (see [The runtimes](../README.md#the-runtimes)). The
+  `/usr/share/nodejs` (see [Why Debian differs](../README.md#why-debian-differs)). The
   patch doesn't help `import` either.
 
 ## Trade-offs

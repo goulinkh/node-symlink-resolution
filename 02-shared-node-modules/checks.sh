@@ -1,5 +1,5 @@
 # Read by ../lib/main.sh and ../lib/run-checks.sh. The commands used here are
-# explained in ../README.md, under "How an example is written".
+# described at the top of ../lib/main.sh.
 
 title 'Shared node_modules directory: one link for every package'
 intro 'foo and bar are installed in /usr/share/nodejs, and bar loads foo.'
