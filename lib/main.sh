@@ -35,8 +35,12 @@ usage() {
   sed -n '2,/^$/s/^# \{0,1\}//p' run.sh
 }
 
+# The packages that the examples install, as a pattern: foo|bar|...
+packages=$(for package in [0-9]*/files/usr/share/nodejs/*/; do basename "$package"; done |
+  sort -u | paste -s -d '|' -)
+
 # Colors the code in a line of text: paths in blue, require and import in
-# magenta, quoted package names in cyan, and NODE_PATH and options in bold.
+# magenta, package names in cyan, and NODE_PATH and options in bold.
 highlight() {
   if [ "$color" = 0 ]; then
     printf '%s\n' "$1"
@@ -47,7 +51,8 @@ highlight() {
     -e "s#(^|[ (])(\\\$ROOT)([^/[:alnum:]]|\$)#\\1$blue\\2$reset\\3#g" \
     -e "s#(^|[ (])('[^' ]*')#\\1$cyan\\2$reset#g" \
     -e "s#(^|[^[:alnum:]_])(require|import)([^[:alnum:]_]|\$)#\\1$magenta\\2$reset\\3#g" \
-    -e "s#(^|[ (])(NODE_PATH|--[a-z-]+)#\\1$bold\\2$reset#g"
+    -e "s#(^|[ (])(NODE_PATH|--[a-z-]+)#\\1$bold\\2$reset#g" \
+    -e "s#(^|[^[:alnum:]_'/.\$-])($packages)([^[:alnum:]_/-]|\$)#\\1$cyan\\2$reset\\3#g"
 }
 
 # Details of runtime N are stored as files in $work/runtimeN/.
@@ -331,11 +336,12 @@ show_example() {
       *': '*) where="${1%%: *}: " what=${1#*: } ;;
       *) where='' what=$1 ;;
     esac
-    what=$(highlight "$(pad "$what" $((label_width - ${#where})))")
-    if [ "$color" = 1 ]; then
-      what=$(printf '%s\n' "$what" | sed -E "s/ (\\([^)]*\\))( *)\$/ $dim\\1$reset\\2/")
-    fi
-    printf '    %s%s%s%s' "$dim" "$where" "$reset" "$what"
+    remark=''
+    case $what in
+      *' ('*')') remark=" (${what##* (}" what=${what% (*} ;;
+    esac
+    printf '    %s%s%s%s%s%s%s%s' "$dim" "$where" "$reset" "$(highlight "$what")" "$dim" "$remark" "$reset" \
+      "$(pad '' $((label_width - ${#where} - ${#what} - ${#remark})))"
 
     previous_kind=''
     for n in $order; do
