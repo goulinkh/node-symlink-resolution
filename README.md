@@ -48,7 +48,9 @@ Part of the output:
     either.
 ```
 
-The complete output is in [`docs/output.txt`](docs/output.txt).
+The complete output is in [`docs/output.txt`](docs/output.txt). CI runs the
+examples on Debian 13 (Node.js 20), Ubuntu 24.04 (Node.js 18) and Ubuntu 26.04
+(Node.js 22), with the same results.
 
 ## Background
 
