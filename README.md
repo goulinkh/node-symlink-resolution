@@ -1,55 +1,52 @@
 # Node.js module resolution with symbolic links
 
-Node.js finds a package by looking for `node_modules/<name>` in each parent
-directory, so packages installed side by side in `/usr/share/nodejs/<name>`
-aren't found by default. These examples try ways around that, with upstream
-Node.js and with Debian's build, which behaves differently.
+Node.js finds a package by looking for `node_modules/<name>` in the directory
+of the file that loads it, then in each parent directory. Packages installed
+side by side in `/usr/share/nodejs/<name>`, as Debian does, are therefore
+not found by default.
+
+This case study tries four ways of making them visible, and compares how
+upstream Node.js and Debian's build handle each one. In every example, `foo`
+and `bar` are installed in `/usr/share/nodejs`, and `bar` loads `foo`.
 
 ```sh
 ./run.sh
 ```
 
-It needs Linux with glibc 2.38 or later, and Python 3. The first run
-downloads Node.js from nodejs.org and Debian 13's `nodejs` package into
-`runtimes/`, about 60 MB, without installing anything.
+This runs every example with both, and prints the results side by side, as
+in [`docs/output.txt`](docs/output.txt).
 
-```
-02  Shared node_modules directory: one link for every package
-    foo and bar are installed in /usr/share/nodejs, and bar loads foo.
-    The link turns /usr/share/nodejs into /usr/share/node_modules.
+## The examples
 
-                                    Upstream    │ Debian
-                                    nodejs.org  │ debian-13
-    bar: require('foo')             ✗ fails     │ ✓ works
-    bar: import 'foo'               ✗ fails     │ ✓ works
-    ── $ ln -s nodejs /usr/share/node_modules ───────────────
-    bar: require('foo')             ✓ works     │ ✓ works
-    bar: import 'foo'               ✓ works     │ ✓ works
-    /opt/app: import 'foo'          ✗ fails     │ ✗ fails
-```
+1. **[`NODE_PATH`](01-node-path).** Point the `NODE_PATH` environment variable
+   at `/usr/share/nodejs`. `require('foo')` then works from anywhere, but
+   `import 'foo'` ignores `NODE_PATH`, so ES modules still can't load `foo`.
 
-## Examples
+2. **[One shared link](02-shared-node-modules).** Add a single link,
+   `/usr/share/node_modules -> nodejs`. Every file under `/usr/share` now
+   finds every package, with both `require()` and `import`. Code elsewhere,
+   such as an application in `/opt`, still doesn't.
 
-`foo` is a package, and `bar` loads it.
+3. **[Links in each package](03-per-package-links).** Each package links the
+   packages it depends on into its own `node_modules`, for example
+   `bar/node_modules/foo -> ../../foo`. Both `require()` and `import` work,
+   and a package only sees the packages it links.
 
-| Example | Makes `foo` visible with | Upstream | Debian |
-| :- | :- | :- | :- |
-| [01](01-node-path) | `NODE_PATH` | For `require()` only | For `require()` only, even without `NODE_PATH` |
-| [02](02-shared-node-modules) | One link, `/usr/share/node_modules -> nodejs` | To code under `/usr/share` | The same, and the link is already there |
-| [03](03-per-package-links) | A link in `bar/node_modules` | `bar` sees only what it links | `bar` sees every package |
-| [04](04-application-links) | Links in `/app/node_modules` | `/app` finds `foo`, but `bar` doesn't | Both find it |
+4. **[Links in an application](04-application-links).** An application in
+   `/app` links the packages it uses into `/app/node_modules`. It finds them,
+   but Node.js follows the link back to `/usr/share/nodejs/bar`, so `bar`
+   can't find its own dependency, `foo`.
 
 ## Why Debian differs
 
-Debian's `nodejs` package, which Ubuntu also uses:
+Debian's `nodejs` package, which Ubuntu also uses, makes two changes:
 
-- [patches Node.js](https://salsa.debian.org/js-team/nodejs/-/blob/master/debian/patches/dfsg/multilib_modules.patch)
-  so that `require()`, but not `import`, also searches `/usr/share/nodejs`;
-- [installs](https://salsa.debian.org/js-team/nodejs/-/blob/master/debian/nodejs.links)
-  the link `/usr/share/node_modules -> nodejs` from example 02.
+- It [patches Node.js](https://salsa.debian.org/js-team/nodejs/-/blob/master/debian/patches/dfsg/multilib_modules.patch)
+  so that `require()` also searches `/usr/share/nodejs`, as if `NODE_PATH`
+  were always set. Like `NODE_PATH`, this doesn't help `import`.
+- It [installs](https://salsa.debian.org/js-team/nodejs/-/blob/master/debian/nodejs.links)
+  the link from example 2, `/usr/share/node_modules -> nodejs`.
 
-## Options
-
-- `./run.sh -v` also prints each command and its output.
-- `./run.sh nodejs.org-20 debian-13` compares the same Node.js version.
-- `NO_COLOR=1 ./run.sh` turns colors off.
+As a result, several cases that fail upstream work on Debian. Because of the
+shipped link, every package in `/usr/share/nodejs` can load every other one
+there, linked or not, which hides missing links in examples 3 and 4.
