@@ -26,7 +26,7 @@ Both files in `/opt/app` load `foo` and print what they got.
 `./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
 stands in for `/`, and runs the commands there:
 
-| Command | nodejs.org | ubuntu-26.04 |
+| Command | nodejs.org | debian-13 |
 | :- | :- | :- |
 | `node $ROOT/opt/app/index.cjs` | fails | works |
 | `NODE_PATH=$ROOT/usr/share/nodejs node $ROOT/opt/app/index.cjs` | works | works |

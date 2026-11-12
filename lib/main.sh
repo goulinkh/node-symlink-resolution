@@ -24,71 +24,55 @@ get() {
   cat "$work/runtime$1/$2"
 }
 
+# Downloads runtime NAME into runtimes/NAME/ on first use.
 add_runtime() {
-  case $1 in
-    nodejs.org)
-      if [ ! -x runtimes/nodejs.org/bin/node ]; then
-        sh lib/download-nodejs-org.sh runtimes/nodejs.org || exit 1
-      fi
-      name=nodejs.org
-      binary=$PWD/runtimes/nodejs.org/bin/node
-      ;;
-    *=*)
-      name=${1%%=*}
-      binary=${1#*=}
-      ;;
-    *)
-      name=''
-      binary=$1
-      ;;
-  esac
-  if [ "$name" != nodejs.org ]; then
-    if [ ! -f "$binary" ] || [ ! -x "$binary" ]; then
-      echo "Not a node binary: $binary" >&2
-      exit 2
-    fi
-    path=$binary
-    binary=$(readlink -f "$path")
-    if [ -z "$name" ] && [ "$path" = /usr/bin/node ] && [ -r /etc/os-release ]; then
-      name=$(. /etc/os-release && printf '%s-%s' "$ID" "$VERSION_ID")
-    fi
-    if [ -z "$name" ]; then
-      name=node-$("$binary" --version)
-    fi
+  name=$1
+  dir=runtimes/$name
+  if [ ! -d "$dir" ]; then
+    python3 lib/download.py "$name" || exit $?
   fi
 
-  # Debian's patch adds a build setting that upstream Node.js doesn't have.
-  if ! kind=$("$binary" -p "process.config.variables.node_relative_path ? 'debian' : 'upstream'" 2>&1); then
-    printf 'Cannot run %s:\n%s\n' "$binary" "$kind" >&2
-    exit 1
+  # A Debian runtime is a set of extracted packages, a nodejs.org runtime
+  # is the release tarball.
+  if [ -f "$dir/usr/bin/node" ]; then
+    binary=$dir/usr/bin/node
+  else
+    binary=$dir/bin/node
   fi
+  libraries=''
+  for libraries_dir in "$dir"/usr/lib/*-linux-gnu; do
+    [ -d "$libraries_dir" ] && libraries=$PWD/$libraries_dir
+  done
 
   [ "${#name}" -gt "$name_width" ] && name_width=${#name}
   count=$((count + 1))
   mkdir "$work/runtime$count"
   printf '%s' "$name" >"$work/runtime$count/name"
+  printf '%s' "$dir" >"$work/runtime$count/dir"
   printf '%s' "$binary" >"$work/runtime$count/binary"
-  printf '%s' "$kind" >"$work/runtime$count/kind"
+  printf '%s' "$libraries" >"$work/runtime$count/libraries"
 
-  # Debian's node finds the folders it searches from its own location, so it
-  # has to be a real file in each root, not a symbolic link. Hard links to
-  # this copy are cheap.
-  if [ "$kind" = debian ]; then
-    cp "$binary" "$work/runtime$count/node"
+  run_checks "$count" about
+  if [ -s "$work/runtime$count/about.err" ] || [ ! -s "$work/runtime$count/about.out" ]; then
+    printf 'Cannot run %s:\n%s\n' "$binary" "$(cat "$work/runtime$count/about.err")" >&2
+    exit 1
   fi
+  sed -n 1p "$work/runtime$count/about.out" >"$work/runtime$count/kind"
 }
 
 # Prepares a fresh root directory for runtime N and EXAMPLE, in $root.
 prepare_root() {
   root=$work/runtime$1/$2
+  dir=$(get "$1" dir)
   mkdir -p "$root/usr/bin"
-  if [ "$(get "$1" kind)" = debian ]; then
-    ln "$work/runtime$1/node" "$root/usr/bin/node"
-    # Debian's nodejs package installs this link.
-    mkdir -p "$root/usr/share"
-    ln -s nodejs "$root/usr/share/node_modules"
+  if [ -f "$dir/usr/bin/node" ]; then
+    # Debian's node finds the folders it searches from its own location, so
+    # it has to be a real file in the root, not a symbolic link. usr/share
+    # has the node_modules link and the files of node's built-in modules.
+    cp "$dir/usr/bin/node" "$root/usr/bin/node"
+    cp -RP "$dir/usr/share" "$root/usr/"
   else
-    ln -s "$(get "$1" binary)" "$root/usr/bin/node"
+    ln -s "$PWD/$dir/bin/node" "$root/usr/bin/node"
   fi
   if [ -d "$2/files" ]; then
     cp -R "$2/files/." "$root/"
@@ -98,6 +82,7 @@ prepare_root() {
 run_checks() {
   prepare_root "$1" "$2"
   env -u NODE_PATH -u NODE_OPTIONS ROOT="$root" HOME="$work/home" PATH="$root/usr/bin:$PATH" \
+    LD_LIBRARY_PATH="$(get "$1" libraries)" \
     sh lib/run-checks.sh "$2" >"$work/runtime$1/$2.out" 2>"$work/runtime$1/$2.err"
 }
 
@@ -132,16 +117,14 @@ show_runtimes() {
   name_column=$((name_width + 2))
   printf '  %s%s%s%s%s\n' "$dim" "$(pad Runtime "$name_column")" "$(pad Group 10)" "$(pad Node.js 11)" "Binary$reset"
   for n in $order; do
-    run_checks "$n" about
-    binary=$(get "$n" binary)
     printf '  %s%s%s%s\n' "$(pad "$(get "$n" name)" "$name_column")" "$(pad "$(group_label "$(get "$n" kind)")" 10)" \
-      "$(pad "$(sed -n 1p "$work/runtime$n/about.out")" 11)" "${binary#"$PWD/"}"
+      "$(pad "$(sed -n 2p "$work/runtime$n/about.out")" 11)" "$(get "$n" binary)"
   done
 
   printf '\n  Folders that require() searches as a last resort:\n\n'
   for n in $order; do
     first=1
-    for folder in $(sed -n 2p "$work/runtime$n/about.out"); do
+    for folder in $(sed -n 3p "$work/runtime$n/about.out"); do
       if [ "$first" = 1 ]; then
         printf '  %s%s\n' "$(pad "$(get "$n" name)" "$name_column")" "$folder"
         first=0
@@ -162,13 +145,12 @@ show_runtimes() {
   - Node.js is patched so that require() also searches /usr/share/nodejs,
     relative to the node binary. That's why the Debian runtime's folders
     above are under $ROOT.
-  - The package installs the link /usr/share/node_modules -> nodejs. Roots
-    for Debian runtimes get this link too.
+  - The package installs the link /usr/share/node_modules -> nodejs, so
+    roots for Debian runtimes have it too.
 EOF
 
   if [ -z "$debian_order" ]; then
-    printf '\n  %sNo Debian runtime: run this on Debian or Ubuntu, with the nodejs\n' "$yellow"
-    printf '  package installed, to compare with Debian'"'"'s Node.js.%s\n' "$reset"
+    printf '\n  %sNo Debian runtime: add debian-13, which needs Linux.%s\n' "$yellow" "$reset"
   fi
 }
 
@@ -298,7 +280,7 @@ main() {
 
   if [ $# -eq 0 ]; then
     set -- nodejs.org
-    [ -x /usr/bin/node ] && set -- "$@" /usr/bin/node
+    [ "$(uname -s)" = Linux ] && set -- "$@" debian-13
   fi
 
   # Under /tmp, and without spaces, so that the commands can use $ROOT

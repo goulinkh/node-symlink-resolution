@@ -33,7 +33,7 @@ The contents of [`files/`](files), as installed on a system, plus the link:
 `./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
 stands in for `/`, and runs the commands there:
 
-| Command | nodejs.org | ubuntu-26.04 |
+| Command | nodejs.org | debian-13 |
 | :- | :- | :- |
 | `node $ROOT/usr/share/nodejs/bar/index.cjs` | fails | works |
 | `node $ROOT/usr/share/nodejs/bar/index.mjs` | fails | works |
@@ -51,8 +51,8 @@ stands in for `/`, and runs the commands there:
 - From `/opt/app`, the upward search never passes through `/usr/share`, so
   `import` doesn't find `foo`. The link only helps files under `/usr/share`.
 - Debian and Ubuntu's `nodejs` package already ships this link, which is why
-  `bar` finds `foo` there before the step. `./run.sh` adds the link to the
-  root of Debian runtimes, the way the package installs it in `/usr/share`.
+  `bar` finds `foo` there before the step. The `debian-13` runtime's root
+  gets the link from the downloaded package.
 
 ## Trade-offs
 

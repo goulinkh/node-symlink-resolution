@@ -10,23 +10,19 @@ on:
 
 jobs:
   examples:
-    name: ./run.sh on ${{ matrix.system }}
+    name: ./run.sh ${{ matrix.runtimes }}
     runs-on: ubuntu-latest
-    container: ${{ matrix.system }}
     strategy:
       fail-fast: false
       matrix:
-        system: ['debian:13', 'ubuntu:24.04', 'ubuntu:26.04']
+        # nodejs.org-20 has the same Node.js version as debian-13.
+        runtimes: ['nodejs.org debian-13', 'nodejs.org-20 debian-13']
     steps:
-      - name: Install the nodejs package
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends nodejs ca-certificates curl xz-utils
       - uses: actions/checkout@v4
       - name: Run the examples
         # "shell: bash" adds pipefail, so a failure isn't hidden by tee.
         shell: bash
-        run: ./run.sh -v | tee output.txt
+        run: ./run.sh -v ${{ matrix.runtimes }} | tee output.txt
       - name: Add the output to the job summary
         if: always()
         run: |

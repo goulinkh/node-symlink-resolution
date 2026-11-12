@@ -35,7 +35,7 @@ The contents of [`files/`](files), as installed on a system, plus the link:
 `./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
 stands in for `/`, and runs the commands there:
 
-| Command | nodejs.org | ubuntu-26.04 |
+| Command | nodejs.org | debian-13 |
 | :- | :- | :- |
 | `node $ROOT/usr/share/nodejs/bar/index.mjs` | fails | works |
 | *Step: `ln -s ../../foo $ROOT/usr/share/nodejs/bar/node_modules/foo`* | | |

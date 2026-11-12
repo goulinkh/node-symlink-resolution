@@ -36,7 +36,7 @@ The application imports `bar`, and `bar` itself depends on `foo`.
 `./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
 stands in for `/`, and runs the commands there:
 
-| Command | nodejs.org | ubuntu-26.04 |
+| Command | nodejs.org | debian-13 |
 | :- | :- | :- |
 | *Step: create the links* | | |
 | `node $ROOT/app/uses-foo.mjs` | works | works |

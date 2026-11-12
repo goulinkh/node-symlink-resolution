@@ -1,15 +1,15 @@
 
 Runtimes
 
-  Runtime       Group     Node.js    Binary
-  nodejs.org    Upstream  v24.22.3   runtimes/nodejs.org/bin/node
-  ubuntu-26.04  Debian    v22.22.1   /usr/bin/node
+  Runtime     Group     Node.js    Binary
+  nodejs.org  Upstream  v24.22.3   runtimes/nodejs.org/bin/node
+  debian-13   Debian    v20.19.2   runtimes/debian-13/usr/bin/node
 
   Folders that require() searches as a last resort:
 
-  nodejs.org    runtimes/nodejs.org/lib/node
-  ubuntu-26.04  $ROOT/usr/lib/x86_64-linux-gnu/nodejs
-                $ROOT/usr/share/nodejs
+  nodejs.org  runtimes/nodejs.org/lib/node
+  debian-13   $ROOT/usr/lib/x86_64-linux-gnu/nodejs
+              $ROOT/usr/share/nodejs
 
   Each example runs in a fresh root directory, $ROOT, which stands in for /.
   The runtime's node is $ROOT/usr/bin/node.
@@ -20,15 +20,15 @@ Runtimes
   - Node.js is patched so that require() also searches /usr/share/nodejs,
     relative to the node binary. That's why the Debian runtime's folders
     above are under $ROOT.
-  - The package installs the link /usr/share/node_modules -> nodejs. Roots
-    for Debian runtimes get this link too.
+  - The package installs the link /usr/share/node_modules -> nodejs, so
+    roots for Debian runtimes have it too.
 
 01  NODE_PATH: require() honors it, import ignores it
     foo is installed in /usr/share/nodejs. The code that loads it is in
     /opt/app, outside /usr/share.
 
                                     Upstream    | Debian
-                                    nodejs.org  | ubuntu-26.04
+                                    nodejs.org  | debian-13
     require('foo')                  fails       | works
     require('foo') with NODE_PATH   works       | works
     import 'foo' with NODE_PATH     fails       | fails
@@ -43,7 +43,7 @@ Runtimes
     The link turns /usr/share/nodejs into /usr/share/node_modules.
 
                                     Upstream    | Debian
-                                    nodejs.org  | ubuntu-26.04
+                                    nodejs.org  | debian-13
     bar: require('foo')             fails       | works
     bar: import 'foo'               fails       | works
     $ ln -s nodejs /usr/share/node_modules
@@ -61,7 +61,7 @@ Runtimes
     foo, and gets a node_modules/foo link. It does not depend on baz.
 
                                     Upstream    | Debian
-                                    nodejs.org  | ubuntu-26.04
+                                    nodejs.org  | debian-13
     bar: import 'foo'               fails       | works
     $ ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo
     bar: require('foo')             works       | works
@@ -78,7 +78,7 @@ Runtimes
     An application in /app links both into /app/node_modules.
 
                                     Upstream    | Debian
-                                    nodejs.org  | ubuntu-26.04
+                                    nodejs.org  | debian-13
     $ ln -s /usr/share/nodejs/foo /usr/share/nodejs/bar /app/node_modules/
     app: import 'foo'               works       | works
     app: import 'bar' (needs foo)   fails       | works

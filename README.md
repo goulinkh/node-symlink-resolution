@@ -17,17 +17,13 @@ JavaScript to follow along.
 ./run.sh
 ```
 
-This needs Linux or macOS, `curl` or `wget`, and `tar` with xz support. The
-first run downloads Node.js from nodejs.org into `runtimes/`. Nothing is
-installed on your system, and each example runs in a fresh temporary
-directory.
+This needs Python 3 and Linux, with glibc 2.38 or later (for example Debian
+13, Ubuntu 24.04 or Fedora 39). It doesn't need root access or an installed
+Node.js. The first run downloads two Node.js runtimes into `runtimes/`, about
+60 MB, and each example runs in a fresh temporary directory.
 
-To compare with Debian's Node.js, run it on Debian or Ubuntu with the `nodejs`
-package installed:
-
-```sh
-sudo apt install nodejs
-```
+On macOS, `./run.sh` runs only the nodejs.org runtime, because Debian's
+Node.js is built for Linux.
 
 Part of the output:
 
@@ -37,7 +33,7 @@ Part of the output:
     /opt/app, outside /usr/share.
 
                                     Upstream    | Debian
-                                    nodejs.org  | ubuntu-26.04
+                                    nodejs.org  | debian-13
     require('foo')                  fails       | works
     require('foo') with NODE_PATH   works       | works
     import 'foo' with NODE_PATH     fails       | fails
@@ -48,9 +44,7 @@ Part of the output:
     either.
 ```
 
-The complete output is in [`docs/output.txt`](docs/output.txt). CI runs the
-examples on Debian 13 (Node.js 20), Ubuntu 24.04 (Node.js 18) and Ubuntu 26.04
-(Node.js 22), with the same results.
+The complete output is in [`docs/output.txt`](docs/output.txt).
 
 ## Background
 
@@ -84,13 +78,15 @@ Node.js has two ways of loading code, and they follow slightly different rules:
 
 ## The runtimes
 
-By default, `./run.sh` compares two runtimes:
+By default, `./run.sh` compares two runtimes, which it downloads into
+`runtimes/` on first use:
 
-| Runtime | Group | Where `node` comes from |
+| Runtime | Group | What it is |
 | :- | :- | :- |
-| `nodejs.org` | Upstream | The official build of Node.js 24, downloaded from nodejs.org |
-| `/usr/bin/node` | Debian | Your system's `nodejs` package, if it is installed. The column is named after your system, for example `ubuntu-26.04`. |
+| `nodejs.org` | Upstream | The official build of Node.js 24, from nodejs.org |
+| `debian-13` | Debian | Debian 13's `nodejs` package (Node.js 20) and the packages it depends on, from the Debian archive |
 
+Ubuntu builds its `nodejs` package from Debian's, with the same changes.
 `./run.sh` tells the two groups apart by asking each `node` for a build
 setting that only Debian's patch adds.
 
@@ -114,15 +110,15 @@ Debian's `nodejs` package changes two things:
 `./run.sh` starts by showing the global folders of each runtime:
 
 ```
-  Runtime       Group     Node.js    Binary
-  nodejs.org    Upstream  v24.22.3   runtimes/nodejs.org/bin/node
-  ubuntu-26.04  Debian    v22.22.1   /usr/bin/node
+  Runtime     Group     Node.js    Binary
+  nodejs.org  Upstream  v24.22.3   runtimes/nodejs.org/bin/node
+  debian-13   Debian    v20.19.2   runtimes/debian-13/usr/bin/node
 
   Folders that require() searches as a last resort:
 
-  nodejs.org    runtimes/nodejs.org/lib/node
-  ubuntu-26.04  $ROOT/usr/lib/x86_64-linux-gnu/nodejs
-                $ROOT/usr/share/nodejs
+  nodejs.org  runtimes/nodejs.org/lib/node
+  debian-13   $ROOT/usr/lib/x86_64-linux-gnu/nodejs
+              $ROOT/usr/share/nodejs
 ```
 
 On your own machine, print them with:
@@ -144,16 +140,31 @@ directory, `$ROOT`, which stands in for `/`:
 - The runtime's `node` is placed in `$ROOT/usr/bin/node`. Because Debian's
   global folders are relative to the `node` binary, they become
   `$ROOT/usr/share/nodejs`, the same as `/usr/share/nodejs` for an installed
-  `/usr/bin/node`. For this to work, Debian's `node` has to be a real file in
-  `$ROOT/usr/bin`: Node.js follows a symbolic link back to `/usr/bin`, and
-  would search `/usr/share/nodejs` instead.
-- For Debian runtimes, `$ROOT` also gets the `usr/share/node_modules -> nodejs`
-  link, the way the `nodejs` package installs it.
+  `/usr/bin/node`. For this to work, Debian's `node` is copied there: Node.js
+  follows a symbolic link back to `runtimes/debian-13`, and would search there
+  instead.
+- For `debian-13`, `$ROOT` also gets the package's `/usr/share`: the
+  `node_modules -> nodejs` link, and the packages in `/usr/share/nodejs` that
+  Debian's `node` itself depends on.
 
-Debian's `node` can't be downloaded like the nodejs.org one: it loads some of
-its built-in modules from fixed paths in your system's `/usr/share/nodejs`,
-and stops at startup if they are missing. That's why the Debian column comes
-from your system's `nodejs` package.
+### How the Debian runtime runs from `runtimes/`
+
+[`lib/download.py`](lib/download.py) extracts the `.deb` files into
+`runtimes/debian-13`, without installing them. Two things make that `node`
+run from there:
+
+- **Libraries.** `./run.sh` points `LD_LIBRARY_PATH` at
+  `runtimes/debian-13/usr/lib/<architecture>`, for `libnode` and the
+  libraries it uses. The C library is your system's: it has to match your
+  system's dynamic loader, which is why glibc 2.38 or later is needed.
+- **Built-in modules.** Debian removes a few libraries bundled in Node.js,
+  such as `acorn` and `undici`, and uses its own `node-acorn` and
+  `node-undici` packages instead. `libnode` loads them at startup from
+  absolute paths compiled into it, such as
+  `/usr/share/nodejs/acorn/dist/acorn.js`, and stops if they are missing. The
+  downloader rewrites these 6 paths to relative ones of the same length, such
+  as `usr/share/nodejs//acorn/dist/acorn.js`, and `./run.sh` runs `node` from
+  `$ROOT`, where they are. Nothing else in Node.js changes.
 
 ## The examples
 
@@ -174,18 +185,17 @@ In every example, `foo` is a package with no dependencies, and `bar` loads
 ```
 
 - `-v` also prints each command and its output, or the error message.
-- `RUNTIME` is `nodejs.org`, or the path of any other `node` binary, optionally
-  with a name: `NAME=PATH`. For example, to add a Node.js installed with nvm:
+- `RUNTIME` is `nodejs.org`, `debian-13`, or `nodejs.org-N` for Node.js N.
+  Debian 13 has Node.js 20, so to rule out a difference between versions:
 
   ```sh
-  ./run.sh nodejs.org nvm=$HOME/.nvm/versions/node/v22.22.1/bin/node /usr/bin/node
+  ./run.sh nodejs.org-20 debian-13
   ```
 
 - `NO_COLOR=1` turns colors off.
 
 `./run.sh` exits with an error, and marks the results with `!`, if any
-outcome differs from what the example expects. Each runtime's group decides
-what to expect, so you can use it to check other Node.js builds.
+outcome differs from what the example expects.
 
 ### Exploring by hand
 
@@ -206,14 +216,19 @@ ln -s nodejs "$ROOT/usr/share/node_modules"
 runtimes/nodejs.org/bin/node "$ROOT/usr/share/nodejs/bar/index.mjs"
 ```
 
-To try Debian's `node`, copy it into the root, so that its global folders
-point inside the root, and check them:
+To try Debian's `node`, copy it and its `/usr/share` into the root, then run
+it from the root:
 
 ```sh
 mkdir -p "$ROOT/usr/bin"
-cp /usr/bin/node "$ROOT/usr/bin/node"
-"$ROOT/usr/bin/node" -p "require('module').globalPaths"
+cp runtimes/debian-13/usr/bin/node "$ROOT/usr/bin/node"
+cp -RP runtimes/debian-13/usr/share "$ROOT/usr/"
+export LD_LIBRARY_PATH=$PWD/runtimes/debian-13/usr/lib/x86_64-linux-gnu
+cd "$ROOT"
+usr/bin/node -p "require('module').globalPaths"
 ```
+
+On arm64, the library directory is `aarch64-linux-gnu`.
 
 ### How an example is written
 
