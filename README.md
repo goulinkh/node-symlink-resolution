@@ -4,7 +4,7 @@ Small, runnable examples of how Node.js finds packages that are installed
 side by side in one shared directory, `/usr/share/nodejs/<name>`, instead of
 in a project's `node_modules` directory.
 
-Each example runs on several Node.js runtimes. Upstream Node.js and Debian's
+Each example runs with several Node.js runtimes. Upstream Node.js and Debian's
 build (also used by Ubuntu) behave differently here, and the results are
 printed side by side so you can see where.
 
@@ -13,25 +13,34 @@ JavaScript to follow along.
 
 ## Quick start
 
-You need [Podman](https://podman.io) or [Docker](https://www.docker.com).
-
 ```sh
 ./run.sh
 ```
 
-Each example runs in a fresh container for each runtime, so nothing is
-installed on your machine. Part of the output:
+This needs Linux or macOS, `curl` or `wget`, and `tar` with xz support. The
+first run downloads Node.js from nodejs.org into `runtimes/`. Nothing is
+installed on your system, and each example runs in a fresh temporary
+directory.
+
+To compare with Debian's Node.js, run it on Debian or Ubuntu with the `nodejs`
+package installed:
+
+```sh
+sudo apt install nodejs
+```
+
+Part of the output:
 
 ```
 01  NODE_PATH: require() honors it, import ignores it
     foo is installed in /usr/share/nodejs. The code that loads it is in
     /opt/app, outside /usr/share.
 
-                                    Upstream               | Debian
-                                    nodejs.org  fedora-43  | debian-13  ubuntu-26.04
-    require('foo')                  fails       fails      | works      works
-    require('foo') with NODE_PATH   works       works      | works      works
-    import 'foo' with NODE_PATH     fails       fails      | fails      fails
+                                    Upstream    | Debian
+                                    nodejs.org  | ubuntu-26.04
+    require('foo')                  fails       | works
+    require('foo') with NODE_PATH   works       | works
+    import 'foo' with NODE_PATH     fails       | fails
 
     Every runtime finds foo through NODE_PATH, but only for require().
     Debian and Ubuntu's Node.js finds foo even without NODE_PATH: it is
@@ -73,14 +82,15 @@ Node.js has two ways of loading code, and they follow slightly different rules:
 
 ## The runtimes
 
+By default, `./run.sh` compares two runtimes:
+
 | Runtime | Group | Where `node` comes from |
 | :- | :- | :- |
-| `nodejs.org` | Upstream | The official `node` image: the unmodified build from nodejs.org |
-| `fedora-43` | Upstream | Fedora's `nodejs` package |
-| `debian-13` | Debian | Debian's `nodejs` package |
-| `ubuntu-26.04` | Debian | Ubuntu's `nodejs` package, which Ubuntu takes from Debian |
+| `nodejs.org` | Upstream | The official build of Node.js 24, downloaded from nodejs.org |
+| `/usr/bin/node` | Debian | Your system's `nodejs` package, if it is installed. The column is named after your system, for example `ubuntu-26.04`. |
 
-Each one is defined by a small file in [`runtimes/`](runtimes).
+`./run.sh` tells the two groups apart by asking each `node` for a build
+setting that only Debian's patch adds.
 
 Debian's `nodejs` package changes two things:
 
@@ -89,36 +99,59 @@ Debian's `nodejs` package changes two things:
    resort. Upstream, the last one is `<prefix>/lib/node`, where `<prefix>` is
    the directory above the `node` binary. Debian
    [patches Node.js](https://salsa.debian.org/js-team/nodejs/-/blob/master/debian/patches/dfsg/multilib_modules.patch)
-   to search `/usr/lib/<architecture>/nodejs` and `/usr/share/nodejs`
-   instead. This works like a `NODE_PATH=/usr/share/nodejs` that is always
-   set, and like `NODE_PATH`, it only applies to `require()`.
+   to search `<prefix>/lib/<architecture>/nodejs` and
+   `<prefix>/share/nodejs` instead, which is `/usr/share/nodejs` for
+   `/usr/bin/node`. This works like a `NODE_PATH=/usr/share/nodejs` that is
+   always set, and like `NODE_PATH`, it only applies to `require()`.
 2. **A symbolic link.** The package
    [ships](https://salsa.debian.org/js-team/nodejs/-/blob/master/debian/nodejs.links)
    `/usr/share/node_modules -> nodejs`, the link from
    [example 02](02-shared-node-modules). This is what makes `import` work
    between packages in `/usr/share/nodejs`.
 
-`./run.sh` starts by showing both for every runtime:
+`./run.sh` starts by showing the global folders of each runtime:
 
 ```
-  Runtime        Group     Node.js    /usr/share/node_modules  require() also searches
-  nodejs.org     Upstream  v24.22.3   none                     /usr/local/lib/node
-  fedora-43      Upstream  v22.22.2   none                     /usr/lib/node
-  debian-13      Debian    v20.19.2   -> nodejs                /usr/lib/x86_64-linux-gnu/nodejs
-                                                               /usr/share/nodejs
-  ubuntu-26.04   Debian    v22.22.1   -> nodejs                /usr/lib/x86_64-linux-gnu/nodejs
-                                                               /usr/share/nodejs
+  Runtime       Group     Node.js    Binary
+  nodejs.org    Upstream  v24.22.3   runtimes/nodejs.org/bin/node
+  ubuntu-26.04  Debian    v22.22.1   /usr/bin/node
+
+  Folders that require() searches as a last resort:
+
+  nodejs.org    runtimes/nodejs.org/lib/node
+  ubuntu-26.04  $ROOT/usr/lib/x86_64-linux-gnu/nodejs
+                $ROOT/usr/share/nodejs
 ```
 
-On your own machine, print the global folders with:
+On your own machine, print them with:
 
 ```sh
 node -p "require('module').globalPaths"
 ```
 
 The first two entries, `~/.node_modules` and `~/.node_libraries`, are the
-same everywhere. The `node` snap behaves like the upstream build: its list
-ends with the `lib/node` directory inside the snap.
+same everywhere.
+
+### How the examples stand in for `/`
+
+The examples need files in places like `/usr/share/nodejs`, which you can't
+write to without root access. Instead, each example gets a fresh temporary
+directory, `$ROOT`, which stands in for `/`:
+
+- The example's [`files/`](01-node-path/files) are copied into `$ROOT`.
+- The runtime's `node` is placed in `$ROOT/usr/bin/node`. Because Debian's
+  global folders are relative to the `node` binary, they become
+  `$ROOT/usr/share/nodejs`, the same as `/usr/share/nodejs` for an installed
+  `/usr/bin/node`. For this to work, Debian's `node` has to be a real file in
+  `$ROOT/usr/bin`: Node.js follows a symbolic link back to `/usr/bin`, and
+  would search `/usr/share/nodejs` instead.
+- For Debian runtimes, `$ROOT` also gets the `usr/share/node_modules -> nodejs`
+  link, the way the `nodejs` package installs it.
+
+Debian's `node` can't be downloaded like the nodejs.org one: it loads some of
+its built-in modules from fixed paths in your system's `/usr/share/nodejs`,
+and stops at startup if they are missing. That's why the Debian column comes
+from your system's `nodejs` package.
 
 ## The examples
 
@@ -139,35 +172,55 @@ In every example, `foo` is a package with no dependencies, and `bar` loads
 ```
 
 - `-v` also prints each command and its output, or the error message.
-- `RUNTIME` picks runtimes by name, for example `./run.sh nodejs.org ubuntu-26.04`.
-- `CONTAINER_ENGINE=docker` picks the container engine, if you have both.
+- `RUNTIME` is `nodejs.org`, or the path of any other `node` binary, optionally
+  with a name: `NAME=PATH`. For example, to add a Node.js installed with nvm:
+
+  ```sh
+  ./run.sh nodejs.org nvm=$HOME/.nvm/versions/node/v22.22.1/bin/node /usr/bin/node
+  ```
+
 - `NO_COLOR=1` turns colors off.
 
 `./run.sh` exits with an error, and marks the results with `!`, if any
-outcome differs from what the example expects. You can use it to check new
-Node.js versions: add a file in `runtimes/` and pass its name.
+outcome differs from what the example expects. Each runtime's group decides
+what to expect, so you can use it to check other Node.js builds.
 
 ### Exploring by hand
 
-After a first `./run.sh`, the images are on your machine. Start a shell in
-one and copy an example's files into `/`:
+Make a root directory, copy an example's files into it, and run `node` on
+them:
 
 ```sh
-docker run --rm -it -v "$PWD:/examples:ro" node-resolution-examples:ubuntu-26.04 bash
-cp -R /examples/02-shared-node-modules/files/. /
-node /usr/share/nodejs/bar/index.mjs
+ROOT=$(mktemp -d)
+cp -R 02-shared-node-modules/files/. "$ROOT"
+runtimes/nodejs.org/bin/node "$ROOT/usr/share/nodejs/bar/index.mjs"
 ```
 
-Use `podman` instead of `docker` if that's what you have.
+This fails with `Cannot find package 'foo'`. Add the link from example 02 and
+try again:
+
+```sh
+ln -s nodejs "$ROOT/usr/share/node_modules"
+runtimes/nodejs.org/bin/node "$ROOT/usr/share/nodejs/bar/index.mjs"
+```
+
+To try Debian's `node`, copy it into the root, so that its global folders
+point inside the root, and check them:
+
+```sh
+mkdir -p "$ROOT/usr/bin"
+cp /usr/bin/node "$ROOT/usr/bin/node"
+"$ROOT/usr/bin/node" -p "require('module').globalPaths"
+```
 
 ### How an example is written
 
 Each example directory has:
 
-- `files/`: copied into `/` inside the container before the checks run.
+- `files/`: copied into `$ROOT` before the checks run.
 - `checks.sh`: the checks, written with five commands:
   - `title` and `intro`: the heading and the description.
-  - `step LABEL COMMAND`: changes the system, for example by creating a link.
+  - `step LABEL COMMAND`: changes the files, for example by creating a link.
   - `check LABEL EXPECTED COMMAND`: runs `COMMAND` and records whether it
     `works` or `fails`. `EXPECTED` is either one outcome for every runtime, or
     one per group, such as `'debian=works upstream=fails'`.

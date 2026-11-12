@@ -10,7 +10,7 @@ ln -s /usr/share/nodejs/foo /usr/share/nodejs/bar /app/node_modules/
 
 ## Layout
 
-The contents of [`files/`](files), as copied into `/`, plus the links:
+The contents of [`files/`](files), as installed on a system, plus the links:
 
 ```
 /
@@ -33,17 +33,20 @@ The application imports `bar`, and `bar` itself depends on `foo`.
 
 ## Results
 
-| Command | nodejs.org | fedora-43 | debian-13 | ubuntu-26.04 |
-| :- | :- | :- | :- | :- |
-| *Step: create the links* | | | | |
-| `node /app/uses-foo.mjs` | works | works | works | works |
-| `node /app/uses-bar.mjs` | fails | fails | works | works |
-| `node --preserve-symlinks /app/uses-bar.mjs` | works | works | works | works |
+`./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
+stands in for `/`, and runs the commands there:
+
+| Command | nodejs.org | ubuntu-26.04 |
+| :- | :- | :- |
+| *Step: create the links* | | |
+| `node $ROOT/app/uses-foo.mjs` | works | works |
+| `node $ROOT/app/uses-bar.mjs` | fails | works |
+| `node --preserve-symlinks $ROOT/app/uses-bar.mjs` | works | works |
 
 The failure prints:
 
 ```
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'foo' imported from /usr/share/nodejs/bar/index.mjs
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'foo' imported from $ROOT/usr/share/nodejs/bar/index.mjs
 ```
 
 ## What it shows

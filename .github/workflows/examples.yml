@@ -10,17 +10,20 @@ on:
 
 jobs:
   examples:
-    name: ./run.sh with ${{ matrix.engine }}
+    name: ./run.sh on ${{ matrix.system }}
     runs-on: ubuntu-latest
+    container: ${{ matrix.system }}
     strategy:
       fail-fast: false
       matrix:
-        engine: [docker, podman]
+        system: ['debian:13', 'ubuntu:24.04', 'ubuntu:26.04']
     steps:
+      - name: Install the nodejs package
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends nodejs ca-certificates curl xz-utils
       - uses: actions/checkout@v4
       - name: Run the examples
-        env:
-          CONTAINER_ENGINE: ${{ matrix.engine }}
         # "shell: bash" adds pipefail, so a failure isn't hidden by tee.
         shell: bash
         run: ./run.sh -v | tee output.txt

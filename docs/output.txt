@@ -1,30 +1,37 @@
 
 Runtimes
 
-  Runtime        Group     Node.js    /usr/share/node_modules  require() also searches
-  nodejs.org     Upstream  v24.22.3   none                     /usr/local/lib/node
-  fedora-43      Upstream  v22.22.2   none                     /usr/lib/node
-  debian-13      Debian    v20.19.2   -> nodejs                /usr/lib/x86_64-linux-gnu/nodejs
-                                                               /usr/share/nodejs
-  ubuntu-26.04   Debian    v22.22.1   -> nodejs                /usr/lib/x86_64-linux-gnu/nodejs
-                                                               /usr/share/nodejs
+  Runtime       Group     Node.js    Binary
+  nodejs.org    Upstream  v24.22.3   runtimes/nodejs.org/bin/node
+  ubuntu-26.04  Debian    v22.22.1   /usr/bin/node
 
-  Debian's nodejs package, which Ubuntu also uses, differs from the
-  upstream build in two ways:
+  Folders that require() searches as a last resort:
+
+  nodejs.org    runtimes/nodejs.org/lib/node
+  ubuntu-26.04  $ROOT/usr/lib/x86_64-linux-gnu/nodejs
+                $ROOT/usr/share/nodejs
+
+  Each example runs in a fresh root directory, $ROOT, which stands in for /.
+  The runtime's node is $ROOT/usr/bin/node.
+
+  Debian's nodejs package, which Ubuntu also uses, differs from upstream
+  Node.js in two ways:
 
   - Node.js is patched so that require() also searches /usr/share/nodejs,
-    from any directory. This is like a NODE_PATH that is always set.
-  - The package ships the link /usr/share/node_modules -> nodejs.
+    relative to the node binary. That's why the Debian runtime's folders
+    above are under $ROOT.
+  - The package installs the link /usr/share/node_modules -> nodejs. Roots
+    for Debian runtimes get this link too.
 
 01  NODE_PATH: require() honors it, import ignores it
     foo is installed in /usr/share/nodejs. The code that loads it is in
     /opt/app, outside /usr/share.
 
-                                    Upstream               | Debian
-                                    nodejs.org  fedora-43  | debian-13  ubuntu-26.04
-    require('foo')                  fails       fails      | works      works
-    require('foo') with NODE_PATH   works       works      | works      works
-    import 'foo' with NODE_PATH     fails       fails      | fails      fails
+                                    Upstream    | Debian
+                                    nodejs.org  | ubuntu-26.04
+    require('foo')                  fails       | works
+    require('foo') with NODE_PATH   works       | works
+    import 'foo' with NODE_PATH     fails       | fails
 
     Every runtime finds foo through NODE_PATH, but only for require().
     Debian and Ubuntu's Node.js finds foo even without NODE_PATH: it is
@@ -35,14 +42,14 @@ Runtimes
     foo and bar are installed in /usr/share/nodejs, and bar loads foo.
     The link turns /usr/share/nodejs into /usr/share/node_modules.
 
-                                    Upstream               | Debian
-                                    nodejs.org  fedora-43  | debian-13  ubuntu-26.04
-    bar: require('foo')             fails       fails      | works      works
-    bar: import 'foo'               fails       fails      | works      works
+                                    Upstream    | Debian
+                                    nodejs.org  | ubuntu-26.04
+    bar: require('foo')             fails       | works
+    bar: import 'foo'               fails       | works
     $ ln -s nodejs /usr/share/node_modules
-    bar: require('foo')             works       works      | works      works
-    bar: import 'foo'               works       works      | works      works
-    /opt/app: import 'foo'          fails       fails      | fails      fails
+    bar: require('foo')             works       | works
+    bar: import 'foo'               works       | works
+    /opt/app: import 'foo'          fails       | fails
 
     Debian and Ubuntu's nodejs package already ships this link, so there
     bar finds foo even before the step. Once the link exists, every runtime
@@ -53,13 +60,13 @@ Runtimes
     foo, bar and baz are installed in /usr/share/nodejs. bar depends on
     foo, and gets a node_modules/foo link. It does not depend on baz.
 
-                                    Upstream               | Debian
-                                    nodejs.org  fedora-43  | debian-13  ubuntu-26.04
-    bar: import 'foo'               fails       fails      | works      works
+                                    Upstream    | Debian
+                                    nodejs.org  | ubuntu-26.04
+    bar: import 'foo'               fails       | works
     $ ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo
-    bar: require('foo')             works       works      | works      works
-    bar: import 'foo'               works       works      | works      works
-    bar: import 'baz' (no link)     fails       fails      | works      works
+    bar: require('foo')             works       | works
+    bar: import 'foo'               works       | works
+    bar: import 'baz' (no link)     fails       | works
 
     After the step, every runtime finds foo. With upstream Node.js, bar sees
     only the packages it links, so baz is not found. On Debian and Ubuntu,
@@ -70,12 +77,12 @@ Runtimes
     foo and bar are installed in /usr/share/nodejs, and bar loads foo.
     An application in /app links both into /app/node_modules.
 
-                                    Upstream               | Debian
-                                    nodejs.org  fedora-43  | debian-13  ubuntu-26.04
+                                    Upstream    | Debian
+                                    nodejs.org  | ubuntu-26.04
     $ ln -s /usr/share/nodejs/foo /usr/share/nodejs/bar /app/node_modules/
-    app: import 'foo'               works       works      | works      works
-    app: import 'bar' (needs foo)   fails       fails      | works      works
-    same, with --preserve-symlinks  works       works      | works      works
+    app: import 'foo'               works       | works
+    app: import 'bar' (needs foo)   fails       | works
+    same, with --preserve-symlinks  works       | works
 
     Node.js follows /app/node_modules/bar to /usr/share/nodejs/bar, and
     looks for bar's own dependencies from there, not from /app. Upstream

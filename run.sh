@@ -1,15 +1,14 @@
 #!/bin/sh
-# Runs every example once per Node.js runtime, each in a fresh container, and
-# prints the results side by side.
+# Runs every example with each Node.js runtime, and prints the results side
+# by side.
 #
 # Usage: ./run.sh [-v] [RUNTIME...]
 #
 #   -v        also print each command and its output
-#   RUNTIME   one or more names from runtimes/, such as ubuntu-26.04 or
-#             nodejs.org (default: all of them)
-#
-# Needs podman or docker. Set CONTAINER_ENGINE to pick one.
+#   RUNTIME   "nodejs.org", downloaded into runtimes/ on first use, or the
+#             path of a node binary, optionally named: NAME=PATH (default:
+#             nodejs.org, and /usr/bin/node if it exists)
 
 cd "$(dirname "$0")" || exit 1
-. lib/host.sh
+. lib/main.sh
 main "$@"

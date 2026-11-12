@@ -11,7 +11,7 @@ ln -s nodejs /usr/share/node_modules
 
 ## Layout
 
-The contents of [`files/`](files), as copied into `/`, plus the link:
+The contents of [`files/`](files), as installed on a system, plus the link:
 
 ```
 /
@@ -30,14 +30,17 @@ The contents of [`files/`](files), as copied into `/`, plus the link:
 
 ## Results
 
-| Command | nodejs.org | fedora-43 | debian-13 | ubuntu-26.04 |
-| :- | :- | :- | :- | :- |
-| `node /usr/share/nodejs/bar/index.cjs` | fails | fails | works | works |
-| `node /usr/share/nodejs/bar/index.mjs` | fails | fails | works | works |
-| *Step: `ln -s nodejs /usr/share/node_modules`* | | | | |
-| `node /usr/share/nodejs/bar/index.cjs` | works | works | works | works |
-| `node /usr/share/nodejs/bar/index.mjs` | works | works | works | works |
-| `node /opt/app/index.mjs` | fails | fails | fails | fails |
+`./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
+stands in for `/`, and runs the commands there:
+
+| Command | nodejs.org | ubuntu-26.04 |
+| :- | :- | :- |
+| `node $ROOT/usr/share/nodejs/bar/index.cjs` | fails | works |
+| `node $ROOT/usr/share/nodejs/bar/index.mjs` | fails | works |
+| *Step: `ln -s nodejs $ROOT/usr/share/node_modules`* | | |
+| `node $ROOT/usr/share/nodejs/bar/index.cjs` | works | works |
+| `node $ROOT/usr/share/nodejs/bar/index.mjs` | works | works |
+| `node $ROOT/opt/app/index.mjs` | fails | fails |
 
 ## What it shows
 
@@ -48,7 +51,8 @@ The contents of [`files/`](files), as copied into `/`, plus the link:
 - From `/opt/app`, the upward search never passes through `/usr/share`, so
   `import` doesn't find `foo`. The link only helps files under `/usr/share`.
 - Debian and Ubuntu's `nodejs` package already ships this link, which is why
-  `bar` finds `foo` there before the step.
+  `bar` finds `foo` there before the step. `./run.sh` adds the link to the
+  root of Debian runtimes, the way the package installs it in `/usr/share`.
 
 ## Trade-offs
 

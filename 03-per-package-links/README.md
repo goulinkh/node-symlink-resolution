@@ -10,7 +10,7 @@ ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo
 
 ## Layout
 
-The contents of [`files/`](files), as copied into `/`, plus the link:
+The contents of [`files/`](files), as installed on a system, plus the link:
 
 ```
 /usr/share/nodejs/
@@ -32,13 +32,16 @@ The contents of [`files/`](files), as copied into `/`, plus the link:
 
 ## Results
 
-| Command | nodejs.org | fedora-43 | debian-13 | ubuntu-26.04 |
-| :- | :- | :- | :- | :- |
-| `node /usr/share/nodejs/bar/index.mjs` | fails | fails | works | works |
-| *Step: `ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo`* | | | | |
-| `node /usr/share/nodejs/bar/index.cjs` | works | works | works | works |
-| `node /usr/share/nodejs/bar/index.mjs` | works | works | works | works |
-| `node /usr/share/nodejs/bar/uses-baz.mjs` | fails | fails | works | works |
+`./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
+stands in for `/`, and runs the commands there:
+
+| Command | nodejs.org | ubuntu-26.04 |
+| :- | :- | :- |
+| `node $ROOT/usr/share/nodejs/bar/index.mjs` | fails | works |
+| *Step: `ln -s ../../foo $ROOT/usr/share/nodejs/bar/node_modules/foo`* | | |
+| `node $ROOT/usr/share/nodejs/bar/index.cjs` | works | works |
+| `node $ROOT/usr/share/nodejs/bar/index.mjs` | works | works |
+| `node $ROOT/usr/share/nodejs/bar/uses-baz.mjs` | fails | works |
 
 ## What it shows
 

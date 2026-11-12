@@ -6,7 +6,7 @@ Node.js look for `foo` directly in `/usr/share/nodejs/foo`.
 
 ## Layout
 
-The contents of [`files/`](files), as copied into `/`:
+The contents of [`files/`](files), as installed on a system:
 
 ```
 /
@@ -23,17 +23,20 @@ Both files in `/opt/app` load `foo` and print what they got.
 
 ## Results
 
-| Command | nodejs.org | fedora-43 | debian-13 | ubuntu-26.04 |
-| :- | :- | :- | :- | :- |
-| `node /opt/app/index.cjs` | fails | fails | works | works |
-| `NODE_PATH=/usr/share/nodejs node /opt/app/index.cjs` | works | works | works | works |
-| `NODE_PATH=/usr/share/nodejs node /opt/app/index.mjs` | fails | fails | fails | fails |
+`./run.sh` copies [`files/`](files) into a fresh directory, `$ROOT`, which
+stands in for `/`, and runs the commands there:
+
+| Command | nodejs.org | ubuntu-26.04 |
+| :- | :- | :- |
+| `node $ROOT/opt/app/index.cjs` | fails | works |
+| `NODE_PATH=$ROOT/usr/share/nodejs node $ROOT/opt/app/index.cjs` | works | works |
+| `NODE_PATH=$ROOT/usr/share/nodejs node $ROOT/opt/app/index.mjs` | fails | fails |
 
 The failures print:
 
 ```
 Error: Cannot find module 'foo'
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'foo' imported from /opt/app/index.mjs
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'foo' imported from $ROOT/opt/app/index.mjs
 ```
 
 ## What it shows
