@@ -70,7 +70,8 @@ Each step prints the command, its output (or the error message), and whether
 it worked or failed as expected. The scripts exit with an error if any outcome
 is different, so you can also use them to compare Node.js versions.
 
-The examples were tested with Node.js 22, 24, and 26.
+CI runs the examples on Node.js 20, 22, 24, and 26, and on Ubuntu's `nodejs`
+package.
 
 ## Debian and Ubuntu's Node.js
 
