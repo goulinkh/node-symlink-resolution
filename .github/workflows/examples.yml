@@ -1,0 +1,31 @@
+name: Examples
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  nodejs-org:
+    name: Node.js ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: ./run-all.sh
+
+  ubuntu-nodejs:
+    name: Ubuntu's nodejs package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y nodejs
+      # The runner image has its own Node.js in /usr/local/bin; use Ubuntu's.
+      - run: PATH=/usr/bin:$PATH ./run-all.sh
+      - run: /usr/bin/node -p "require('module').globalPaths"
