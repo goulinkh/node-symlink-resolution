@@ -28,7 +28,6 @@ if [ "$1" = about ]; then
 fi
 
 title() { :; }
-intro() { :; }
 note() { :; }
 
 step() {

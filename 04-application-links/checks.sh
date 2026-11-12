@@ -2,8 +2,6 @@
 # described at the top of ../lib/main.sh.
 
 title 'Application links: an application links the packages it uses'
-intro 'foo and bar are installed in /usr/share/nodejs, and bar loads foo.'
-intro 'An application in /app links both into /app/node_modules.'
 
 step 'ln -s /usr/share/nodejs/foo /usr/share/nodejs/bar /app/node_modules/' \
   'mkdir -p $ROOT/app/node_modules && ln -s $ROOT/usr/share/nodejs/foo $ROOT/usr/share/nodejs/bar $ROOT/app/node_modules/'

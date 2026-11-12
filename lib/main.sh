@@ -5,7 +5,9 @@
 # Each example directory has files/, copied into $ROOT, and checks.sh, which
 # uses these commands:
 #
-#   title TEXT, intro TEXT         the heading and the description
+#   title TEXT                     the heading, followed by what the example
+#                                  installs: each directory in files/ and the
+#                                  packages its code loads
 #   step TEXT COMMAND              changes the files; TEXT is what is shown
 #   check LABEL EXPECTED COMMAND   runs COMMAND, which works or fails.
 #                                  EXPECTED is one outcome for every runtime,
@@ -212,6 +214,54 @@ expected_for() {
   esac
 }
 
+# Prints one line per package or application in EXAMPLE/files, with the
+# packages its code loads, tab-separated: packages before applications, and
+# those that load nothing first.
+layout() {
+  (cd "$1/files" && find . -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \)) |
+    while read -r file; do
+      path=${file#.}
+      case $path in
+        /usr/share/nodejs/*)
+          package=${path#/usr/share/nodejs/}
+          directory=/usr/share/nodejs/${package%%/*}
+          ;;
+        *) directory=${path%/*} ;;
+      esac
+      printf '%s\t\n' "$directory"
+      grep -oE "require\('[^']+'\)|from '[^']+'|import\('[^']+'\)" "$1/files$path" |
+        sed -E "s/.*'([^']+)'.*/\1/" | sed "s|^|$directory$tab|"
+    done |
+    sort -u |
+    awk -F '\t' '
+      !($1 in loads) { loads[$1] = ""; order[++count] = $1 }
+      $2 != "" { loads[$1] = loads[$1] (loads[$1] == "" ? "" : ", ") $2 }
+      END {
+        for (i = 1; i <= count; i++) {
+          d = order[i]
+          printf "%d%d\t%s\t%s\n", d !~ /^\/usr\/share\/nodejs\//, loads[d] != "", d, loads[d]
+        }
+      }' |
+    sort | cut -f 2-
+}
+
+show_layout() {
+  layout "$1" >"$work/layout"
+  width=0
+  while IFS=$tab read -r directory loads; do
+    [ "${#directory}" -gt "$width" ] && width=${#directory}
+  done <"$work/layout"
+  printf '\n'
+  while IFS=$tab read -r directory loads; do
+    if [ -n "$loads" ]; then
+      printf '    %s%s%s%sloads%s %s%s%s\n' "$blue" "$(pad "$directory" $((width + 4)))" "$reset" \
+        "$dim" "$reset" "$cyan" "$loads" "$reset"
+    else
+      printf '    %s%s%s\n' "$blue" "$directory" "$reset"
+    fi
+  done <"$work/layout"
+}
+
 show_example() {
   example=$1
   index=0
@@ -220,10 +270,7 @@ show_example() {
 
   title() {
     heading "${example%%-*}" "$1"
-  }
-
-  intro() {
-    printf '    %s\n' "$(highlight "$1")"
+    show_layout "$example"
   }
 
   # The column headings: one label per group of runtimes, then the runtime

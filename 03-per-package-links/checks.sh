@@ -2,8 +2,6 @@
 # described at the top of ../lib/main.sh.
 
 title 'Per-package links: each package links its own dependencies'
-intro 'foo, bar and baz are installed in /usr/share/nodejs. bar depends on'
-intro 'foo, and gets a node_modules/foo link. It does not depend on baz.'
 
 check "bar: import 'foo'" 'debian=works upstream=fails' \
   'node $ROOT/usr/share/nodejs/bar/index.mjs'

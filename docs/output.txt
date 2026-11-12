@@ -23,8 +23,9 @@ Runtimes
     │   so roots for Debian runtimes have it too.
 
 01  NODE_PATH: require() honors it, import ignores it
-    foo is installed in /usr/share/nodejs. The code that loads it is in
-    /opt/app, outside /usr/share.
+
+    /usr/share/nodejs/foo
+    /opt/app                 loads foo
 
                                     Upstream    │ Debian
                                     nodejs.org  │ debian-13
@@ -38,8 +39,10 @@ Runtimes
     │ either.
 
 02  Shared node_modules directory: one link for every package
-    foo and bar are installed in /usr/share/nodejs, and bar loads foo.
-    The link turns /usr/share/nodejs into /usr/share/node_modules.
+
+    /usr/share/nodejs/foo
+    /usr/share/nodejs/bar    loads foo
+    /opt/app                 loads foo
 
                                     Upstream    │ Debian
                                     nodejs.org  │ debian-13
@@ -56,8 +59,10 @@ Runtimes
     │ /usr/share: /opt/app still fails.
 
 03  Per-package links: each package links its own dependencies
-    foo, bar and baz are installed in /usr/share/nodejs. bar depends on
-    foo, and gets a node_modules/foo link. It does not depend on baz.
+
+    /usr/share/nodejs/baz
+    /usr/share/nodejs/foo
+    /usr/share/nodejs/bar    loads baz, foo
 
                                     Upstream    │ Debian
                                     nodejs.org  │ debian-13
@@ -73,8 +78,10 @@ Runtimes
     │ baz included.
 
 04  Application links: an application links the packages it uses
-    foo and bar are installed in /usr/share/nodejs, and bar loads foo.
-    An application in /app links both into /app/node_modules.
+
+    /usr/share/nodejs/foo
+    /usr/share/nodejs/bar    loads foo
+    /app                     loads bar, foo
 
                                     Upstream    │ Debian
                                     nodejs.org  │ debian-13

@@ -2,8 +2,6 @@
 # described at the top of ../lib/main.sh.
 
 title 'NODE_PATH: require() honors it, import ignores it'
-intro 'foo is installed in /usr/share/nodejs. The code that loads it is in'
-intro '/opt/app, outside /usr/share.'
 
 check "require('foo')" 'debian=works upstream=fails' \
   'node $ROOT/opt/app/index.cjs'

@@ -2,8 +2,6 @@
 # described at the top of ../lib/main.sh.
 
 title 'Shared node_modules directory: one link for every package'
-intro 'foo and bar are installed in /usr/share/nodejs, and bar loads foo.'
-intro 'The link turns /usr/share/nodejs into /usr/share/node_modules.'
 
 check "bar: require('foo')" 'debian=works upstream=fails' \
   'node $ROOT/usr/share/nodejs/bar/index.cjs'
