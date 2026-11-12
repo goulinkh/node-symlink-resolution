@@ -6,15 +6,37 @@ side by side in `/usr/share/nodejs/<name>`, as Debian does, are therefore
 not found by default.
 
 This case study tries four ways of making them visible, and compares how
-upstream Node.js and Debian's build handle each one. In every example, `foo`
-and `bar` are installed in `/usr/share/nodejs`, and `bar` loads `foo`.
+upstream Node.js and Debian's build handle each one. The examples share this
+layout, where `bar` depends on `foo`. Each uses part of it and adds its own
+links:
+
+```
+/
+├── usr/share/
+│   ├── node_modules -> nodejs        link added by example 2
+│   └── nodejs/
+│       ├── foo/
+│       └── bar/                      loads foo
+│           └── node_modules/
+│               └── foo -> ../../foo  link added by example 3
+├── opt/app/                          loads foo (examples 1 and 2)
+└── app/                              loads foo and bar (example 4)
+    └── node_modules/                 links added by example 4
+        ├── foo -> /usr/share/nodejs/foo
+        └── bar -> /usr/share/nodejs/bar
+```
+
+When `bar` loads `foo`, Node.js looks in `bar/node_modules`,
+`/usr/share/nodejs/node_modules`, `/usr/share/node_modules`,
+`/usr/node_modules` and `/node_modules`, but never in `/usr/share/nodejs`
+itself.
 
 ```sh
 ./run.sh
 ```
 
-This runs every example with both, and prints the results side by side, as
-in [`docs/output.txt`](docs/output.txt).
+This runs every example with upstream Node.js and with Debian's, and prints
+the results side by side, as in [`docs/output.txt`](docs/output.txt).
 
 ## The examples
 
