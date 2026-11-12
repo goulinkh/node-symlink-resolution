@@ -32,19 +32,28 @@ Part of the output:
     foo is installed in /usr/share/nodejs. The code that loads it is in
     /opt/app, outside /usr/share.
 
-                                    Upstream    | Debian
-                                    nodejs.org  | debian-13
-    require('foo')                  fails       | works
-    require('foo') with NODE_PATH   works       | works
-    import 'foo' with NODE_PATH     fails       | fails
+                                    Upstream    │ Debian
+                                    nodejs.org  │ debian-13
+    require('foo')                  ✗ fails     │ ✓ works
+    require('foo') with NODE_PATH   ✓ works     │ ✓ works
+    import 'foo' with NODE_PATH     ✗ fails     │ ✗ fails
 
-    Every runtime finds foo through NODE_PATH, but only for require().
-    Debian and Ubuntu's Node.js finds foo even without NODE_PATH: it is
-    patched to search /usr/share/nodejs. That patch doesn't help import
-    either.
+    │ Every runtime finds foo through NODE_PATH, but only for require().
+    │ Debian and Ubuntu's Node.js finds foo even without NODE_PATH: it is
+    │ patched to search /usr/share/nodejs. That patch doesn't help import
+    │ either.
 ```
 
-The complete output is in [`docs/output.txt`](docs/output.txt).
+How to read it:
+
+- Each row runs one command with every runtime: `✓ works` or `✗ fails`.
+- A line starting with `── $` is a step. It changes the files, so the rows
+  below it run after the change.
+- The text after `│` explains the results.
+- `!` marks a result that differs from what the example expects.
+
+In a terminal, the output is in color, with the code in it highlighted. The
+complete output is in [`docs/output.txt`](docs/output.txt).
 
 ## Background
 
@@ -110,15 +119,15 @@ Debian's `nodejs` package changes two things:
 `./run.sh` starts by showing the global folders of each runtime:
 
 ```
-  Runtime     Group     Node.js    Binary
-  nodejs.org  Upstream  v24.22.3   runtimes/nodejs.org/bin/node
-  debian-13   Debian    v20.19.2   runtimes/debian-13/usr/bin/node
+    Runtime     Group     Node.js    Binary
+    nodejs.org  Upstream  v24.22.3   runtimes/nodejs.org/bin/node
+    debian-13   Debian    v20.19.2   runtimes/debian-13/usr/bin/node
 
-  Folders that require() searches as a last resort:
+    Folders that require() searches as a last resort:
 
-  nodejs.org  runtimes/nodejs.org/lib/node
-  debian-13   $ROOT/usr/lib/x86_64-linux-gnu/nodejs
-              $ROOT/usr/share/nodejs
+    nodejs.org  runtimes/nodejs.org/lib/node
+    debian-13   $ROOT/usr/lib/x86_64-linux-gnu/nodejs
+                $ROOT/usr/share/nodejs
 ```
 
 On your own machine, print them with:

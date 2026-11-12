@@ -9,14 +9,32 @@ mismatches=0
 verbose=0
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-  bold=$(printf '\033[1m') dim=$(printf '\033[2m') reset=$(printf '\033[0m')
-  green=$(printf '\033[32m') red=$(printf '\033[31m') yellow=$(printf '\033[33m')
+  color=1
+  esc=$(printf '\033')
+  reset="$esc[0m" bold="$esc[1m" dim="$esc[2m" reverse="$esc[7m"
+  red="$esc[31m" green="$esc[32m" yellow="$esc[33m" blue="$esc[34m" magenta="$esc[35m" cyan="$esc[36m"
 else
-  bold='' dim='' reset='' green='' red='' yellow=''
+  color=0
+  reset='' bold='' dim='' reverse='' red='' green='' yellow='' blue='' magenta='' cyan=''
 fi
 
 usage() {
   sed -n '2,/^$/s/^# \{0,1\}//p' run.sh
+}
+
+# Colors the code in a line of text: paths in blue, require and import in
+# magenta, quoted package names in cyan, and NODE_PATH and options in bold.
+highlight() {
+  if [ "$color" = 0 ]; then
+    printf '%s\n' "$1"
+    return
+  fi
+  printf '%s\n' "$1" | sed -E \
+    -e "s#(^|[ (])([[:alnum:]_.\$@-]*/[[:alnum:]_./@-]*[[:alnum:]_@-])#\\1$blue\\2$reset#g" \
+    -e "s#(^|[ (])(\\\$ROOT)([^/[:alnum:]]|\$)#\\1$blue\\2$reset\\3#g" \
+    -e "s#(^|[ (])('[^' ]*')#\\1$cyan\\2$reset#g" \
+    -e "s#(^|[^[:alnum:]_])(require|import)([^[:alnum:]_]|\$)#\\1$magenta\\2$reset\\3#g" \
+    -e "s#(^|[ (])(NODE_PATH|--[a-z-]+)#\\1$bold\\2$reset#g"
 }
 
 # Details of runtime N are stored as files in $work/runtimeN/.
@@ -97,9 +115,19 @@ pad() {
   printf "%-${2}s" "$1"
 }
 
+# Prints N horizontal line characters.
+line() {
+  i=0
+  while [ "$i" -lt "$1" ]; do
+    printf '─'
+    i=$((i + 1))
+  done
+}
+
+# Each result column fits the runtime name and the longest cell, "✓ works !".
 column_width() {
   width=${#1}
-  [ "$width" -lt 7 ] && width=7
+  [ "$width" -lt 9 ] && width=9
   echo $((width + 2))
 }
 
@@ -107,50 +135,58 @@ column_width() {
 separator() {
   kind=$(get "$1" kind)
   if [ -n "$previous_kind" ] && [ "$kind" != "$previous_kind" ]; then
-    printf '%s|%s ' "$dim" "$reset"
+    printf '%s│%s ' "$dim" "$reset"
   fi
   previous_kind=$kind
 }
 
+# Prints a heading: " TEXT " in reverse video, or "TEXT" without colors.
+heading() {
+  if [ "$color" = 1 ]; then
+    printf '\n%s%s %s %s %s%s%s\n' "$reverse" "$bold" "$1" "$reset" "$bold" "$2" "$reset"
+  else
+    printf '\n%s\n' "$1${2:+  $2}"
+  fi
+}
+
+# An explanation: a line of text after a bar.
+explain() {
+  printf '    %s│%s%s\n' "$dim" "$reset" "${1:+ $(highlight "$1")}"
+}
+
 show_runtimes() {
-  printf '\n%sRuntimes%s\n\n' "$bold" "$reset"
+  heading Runtimes ''
   name_column=$((name_width + 2))
-  printf '  %s%s%s%s%s\n' "$dim" "$(pad Runtime "$name_column")" "$(pad Group 10)" "$(pad Node.js 11)" "Binary$reset"
+  printf '\n    %s%s%s%s%s%s\n' "$dim" "$(pad Runtime "$name_column")" "$(pad Group 10)" "$(pad Node.js 11)" Binary "$reset"
   for n in $order; do
-    printf '  %s%s%s%s\n' "$(pad "$(get "$n" name)" "$name_column")" "$(pad "$(group_label "$(get "$n" kind)")" 10)" \
-      "$(pad "$(sed -n 2p "$work/runtime$n/about.out")" 11)" "$(get "$n" binary)"
+    printf '    %s%s%s%s%s%s%s\n' "$(pad "$(get "$n" name)" "$name_column")" \
+      "$bold" "$(pad "$(group_label "$(get "$n" kind)")" 10)" "$reset" \
+      "$(pad "$(sed -n 2p "$work/runtime$n/about.out")" 11)" "$blue$(get "$n" binary)" "$reset"
   done
 
-  printf '\n  Folders that require() searches as a last resort:\n\n'
+  printf '\n    %s\n\n' "$(highlight 'Folders that require() searches as a last resort:')"
   for n in $order; do
-    first=1
+    label=$(get "$n" name)
     for folder in $(sed -n 3p "$work/runtime$n/about.out"); do
-      if [ "$first" = 1 ]; then
-        printf '  %s%s\n' "$(pad "$(get "$n" name)" "$name_column")" "$folder"
-        first=0
-      else
-        printf "  %${name_column}s%s\\n" '' "$folder"
-      fi
+      printf '    %s%s%s%s\n' "$(pad "$label" "$name_column")" "$blue" "$folder" "$reset"
+      label=''
     done
   done
 
-  cat <<'EOF'
-
-  Each example runs in a fresh root directory, $ROOT, which stands in for /.
-  The runtime's node is $ROOT/usr/bin/node.
-
-  Debian's nodejs package, which Ubuntu also uses, differs from upstream
-  Node.js in two ways:
-
-  - Node.js is patched so that require() also searches /usr/share/nodejs,
-    relative to the node binary. That's why the Debian runtime's folders
-    above are under $ROOT.
-  - The package installs the link /usr/share/node_modules -> nodejs, so
-    roots for Debian runtimes have it too.
-EOF
+  printf '\n'
+  explain 'Each example runs in a fresh root directory, $ROOT, which stands in'
+  explain 'for /. The runtime'"'"'s node is $ROOT/usr/bin/node.'
+  explain ''
+  explain 'Debian'"'"'s nodejs package, which Ubuntu also uses, differs from'
+  explain 'upstream Node.js in two ways:'
+  explain '• Node.js is patched so that require() also searches'
+  explain '  /usr/share/nodejs, relative to the node binary. That'"'"'s why the'
+  explain '  Debian runtime'"'"'s folders above are under $ROOT.'
+  explain '• The package installs the link /usr/share/node_modules -> nodejs,'
+  explain '  so roots for Debian runtimes have it too.'
 
   if [ -z "$debian_order" ]; then
-    printf '\n  %sNo Debian runtime: add debian-13, which needs Linux.%s\n' "$yellow" "$reset"
+    printf '\n    %sNo Debian runtime: add debian-13, which needs Linux.%s\n' "$yellow" "$reset"
   fi
 }
 
@@ -172,18 +208,20 @@ show_example() {
   notes_started=0
 
   title() {
-    printf '\n%s%s  %s%s\n' "$bold" "${example%%-*}" "$1" "$reset"
+    heading "${example%%-*}" "$1"
   }
 
   intro() {
-    printf '    %s\n' "$1"
+    printf '    %s\n' "$(highlight "$1")"
   }
 
+  # The column headings: one label per group of runtimes, then the runtime
+  # names. Printed before the first check or step.
   header() {
     [ "$header_pending" = 1 ] || return 0
     header_pending=0
 
-    # First line: one label per group of runtimes.
+    table_width=$label_width
     printf '\n    %s' "$(pad '' "$label_width")"
     previous_kind=''
     group_width=0
@@ -191,17 +229,19 @@ show_example() {
       kind=$(get "$n" kind)
       if [ "$kind" != "$previous_kind" ]; then
         if [ -n "$previous_kind" ]; then
-          printf '%s%s|%s ' "$(pad "$label" "$group_width")" "$dim" "$reset"
+          printf '%s%s│%s ' "$(pad "$label" "$group_width")" "$dim" "$reset"
+          table_width=$((table_width + 2))
         fi
         label="$bold$(group_label "$kind")$reset"
         group_width=$((${#bold} + ${#reset}))
       fi
-      group_width=$((group_width + $(column_width "$(get "$n" name)")))
+      width=$(column_width "$(get "$n" name)")
+      group_width=$((group_width + width))
+      table_width=$((table_width + width))
       previous_kind=$kind
     done
     printf '%s\n' "$label"
 
-    # Second line: the runtime names.
     printf '    %s' "$(pad '' "$label_width")"
     previous_kind=''
     for n in $order; do
@@ -212,9 +252,12 @@ show_example() {
     printf '\n'
   }
 
+  # A step changes the files: a line between the checks before and after.
   step() {
     header
-    printf '    %s$ %s%s\n' "$dim" "$1" "$reset"
+    fill=$((table_width - ${#1} - 6))
+    [ "$fill" -lt 2 ] && fill=2
+    printf '    %s── $%s %s %s%s%s\n' "$dim" "$reset" "$(highlight "$1")" "$dim" "$(line "$fill")" "$reset"
     if [ "$verbose" = 1 ]; then
       printf '      %s(runs: %s)%s\n' "$dim" "$2" "$reset"
     fi
@@ -223,7 +266,19 @@ show_example() {
   check() {
     header
     index=$((index + 1))
-    printf '    %s' "$(pad "$1" "$label_width")"
+
+    # "bar: import 'foo' (no link)": where the code runs is dimmed, and so is
+    # a remark in parentheses at the end.
+    case $1 in
+      *': '*) where="${1%%: *}: " what=${1#*: } ;;
+      *) where='' what=$1 ;;
+    esac
+    what=$(highlight "$(pad "$what" $((label_width - ${#where})))")
+    if [ "$color" = 1 ]; then
+      what=$(printf '%s\n' "$what" | sed -E "s/ (\\([^)]*\\))( *)\$/ $dim\\1$reset\\2/")
+    fi
+    printf '    %s%s%s%s' "$dim" "$where" "$reset" "$what"
+
     previous_kind=''
     for n in $order; do
       separator "$n"
@@ -231,21 +286,27 @@ show_example() {
       outcome=${result%%"$tab"*}
       [ -n "$outcome" ] || outcome=error
       expected=$(expected_for "$2" "$(get "$n" kind)")
-      case $outcome in works) color=$green ;; *) color=$red ;; esac
+      case $outcome in
+        works) mark='✓' cell_color=$green ;;
+        *) mark='✗' cell_color=$red ;;
+      esac
       cell=$outcome
       if [ "$outcome" != "$expected" ]; then
-        color=$yellow
+        cell_color=$bold$yellow
         cell="$outcome !"
         mismatches=$((mismatches + 1))
       fi
-      printf '%s%s%s' "$color" "$(pad "$cell" "$(column_width "$(get "$n" name)")")" "$reset"
+      printf '%s%s %s%s' "$cell_color" "$mark" "$(pad "$cell" $(($(column_width "$(get "$n" name)") - 2)))" "$reset"
     done
     printf '\n'
+
     if [ "$verbose" = 1 ]; then
       printf '      %s$ %s%s\n' "$dim" "$3" "$reset"
       for n in $order; do
         detail=$(sed -n "${index}p" "$work/runtime$n/$example.out")
-        printf '      %s%s%s%s\n' "$dim" "$(pad "$(get "$n" name)" "$((name_width + 2))")" "${detail#*"$tab"}" "$reset"
+        case $detail in works*) detail_color=$green ;; *) detail_color=$red ;; esac
+        printf '      %s%s%s%s%s\n' "$dim" "$(pad "$(get "$n" name)" "$((name_width + 2))")" \
+          "$detail_color" "${detail#*"$tab"}" "$reset"
       done
     fi
   }
@@ -255,7 +316,7 @@ show_example() {
       printf '\n'
       notes_started=1
     fi
-    printf '    %s\n' "$1"
+    explain "$1"
   }
 
   . "./$example/checks.sh"
@@ -316,10 +377,10 @@ main() {
 
   printf '\n'
   if [ "$mismatches" -eq 0 ]; then
-    printf 'Every result matches what the examples expect.\n'
+    printf '%s✓ Every result matches what the examples expect.%s\n' "$green" "$reset"
   else
-    printf '%s%s result(s), marked with !, differ from what the examples expect.%s\n' \
-      "$yellow" "$mismatches" "$reset"
+    printf '%s! %s result(s), marked with !, differ from what the examples expect.%s\n' \
+      "$bold$yellow" "$mismatches" "$reset"
     exit 1
   fi
 }

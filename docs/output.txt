@@ -1,93 +1,92 @@
 
 Runtimes
 
-  Runtime     Group     Node.js    Binary
-  nodejs.org  Upstream  v24.22.3   runtimes/nodejs.org/bin/node
-  debian-13   Debian    v20.19.2   runtimes/debian-13/usr/bin/node
+    Runtime     Group     Node.js    Binary
+    nodejs.org  Upstream  v24.22.3   runtimes/nodejs.org/bin/node
+    debian-13   Debian    v20.19.2   runtimes/debian-13/usr/bin/node
 
-  Folders that require() searches as a last resort:
+    Folders that require() searches as a last resort:
 
-  nodejs.org  runtimes/nodejs.org/lib/node
-  debian-13   $ROOT/usr/lib/x86_64-linux-gnu/nodejs
-              $ROOT/usr/share/nodejs
+    nodejs.org  runtimes/nodejs.org/lib/node
+    debian-13   $ROOT/usr/lib/x86_64-linux-gnu/nodejs
+                $ROOT/usr/share/nodejs
 
-  Each example runs in a fresh root directory, $ROOT, which stands in for /.
-  The runtime's node is $ROOT/usr/bin/node.
-
-  Debian's nodejs package, which Ubuntu also uses, differs from upstream
-  Node.js in two ways:
-
-  - Node.js is patched so that require() also searches /usr/share/nodejs,
-    relative to the node binary. That's why the Debian runtime's folders
-    above are under $ROOT.
-  - The package installs the link /usr/share/node_modules -> nodejs, so
-    roots for Debian runtimes have it too.
+    │ Each example runs in a fresh root directory, $ROOT, which stands in
+    │ for /. The runtime's node is $ROOT/usr/bin/node.
+    │
+    │ Debian's nodejs package, which Ubuntu also uses, differs from
+    │ upstream Node.js in two ways:
+    │ • Node.js is patched so that require() also searches
+    │   /usr/share/nodejs, relative to the node binary. That's why the
+    │   Debian runtime's folders above are under $ROOT.
+    │ • The package installs the link /usr/share/node_modules -> nodejs,
+    │   so roots for Debian runtimes have it too.
 
 01  NODE_PATH: require() honors it, import ignores it
     foo is installed in /usr/share/nodejs. The code that loads it is in
     /opt/app, outside /usr/share.
 
-                                    Upstream    | Debian
-                                    nodejs.org  | debian-13
-    require('foo')                  fails       | works
-    require('foo') with NODE_PATH   works       | works
-    import 'foo' with NODE_PATH     fails       | fails
+                                    Upstream    │ Debian
+                                    nodejs.org  │ debian-13
+    require('foo')                  ✗ fails     │ ✓ works
+    require('foo') with NODE_PATH   ✓ works     │ ✓ works
+    import 'foo' with NODE_PATH     ✗ fails     │ ✗ fails
 
-    Every runtime finds foo through NODE_PATH, but only for require().
-    Debian and Ubuntu's Node.js finds foo even without NODE_PATH: it is
-    patched to search /usr/share/nodejs. That patch doesn't help import
-    either.
+    │ Every runtime finds foo through NODE_PATH, but only for require().
+    │ Debian and Ubuntu's Node.js finds foo even without NODE_PATH: it is
+    │ patched to search /usr/share/nodejs. That patch doesn't help import
+    │ either.
 
 02  Shared node_modules directory: one link for every package
     foo and bar are installed in /usr/share/nodejs, and bar loads foo.
     The link turns /usr/share/nodejs into /usr/share/node_modules.
 
-                                    Upstream    | Debian
-                                    nodejs.org  | debian-13
-    bar: require('foo')             fails       | works
-    bar: import 'foo'               fails       | works
-    $ ln -s nodejs /usr/share/node_modules
-    bar: require('foo')             works       | works
-    bar: import 'foo'               works       | works
-    /opt/app: import 'foo'          fails       | fails
+                                    Upstream    │ Debian
+                                    nodejs.org  │ debian-13
+    bar: require('foo')             ✗ fails     │ ✓ works
+    bar: import 'foo'               ✗ fails     │ ✓ works
+    ── $ ln -s nodejs /usr/share/node_modules ───────────────
+    bar: require('foo')             ✓ works     │ ✓ works
+    bar: import 'foo'               ✓ works     │ ✓ works
+    /opt/app: import 'foo'          ✗ fails     │ ✗ fails
 
-    Debian and Ubuntu's nodejs package already ships this link, so there
-    bar finds foo even before the step. Once the link exists, every runtime
-    finds foo for both require() and import, but only from code under
-    /usr/share: /opt/app still fails.
+    │ Debian and Ubuntu's nodejs package already ships this link, so there
+    │ bar finds foo even before the step. Once the link exists, every runtime
+    │ finds foo for both require() and import, but only from code under
+    │ /usr/share: /opt/app still fails.
 
 03  Per-package links: each package links its own dependencies
     foo, bar and baz are installed in /usr/share/nodejs. bar depends on
     foo, and gets a node_modules/foo link. It does not depend on baz.
 
-                                    Upstream    | Debian
-                                    nodejs.org  | debian-13
-    bar: import 'foo'               fails       | works
-    $ ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo
-    bar: require('foo')             works       | works
-    bar: import 'foo'               works       | works
-    bar: import 'baz' (no link)     fails       | works
+                                    Upstream    │ Debian
+                                    nodejs.org  │ debian-13
+    bar: import 'foo'               ✗ fails     │ ✓ works
+    ── $ ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo ──
+    bar: require('foo')             ✓ works     │ ✓ works
+    bar: import 'foo'               ✓ works     │ ✓ works
+    bar: import 'baz' (no link)     ✗ fails     │ ✓ works
 
-    After the step, every runtime finds foo. With upstream Node.js, bar sees
-    only the packages it links, so baz is not found. On Debian and Ubuntu,
-    the shipped /usr/share/node_modules link exposes every package to bar,
-    baz included.
+    │ After the step, every runtime finds foo. With upstream Node.js, bar sees
+    │ only the packages it links, so baz is not found. On Debian and Ubuntu,
+    │ the shipped /usr/share/node_modules link exposes every package to bar,
+    │ baz included.
 
 04  Application links: an application links the packages it uses
     foo and bar are installed in /usr/share/nodejs, and bar loads foo.
     An application in /app links both into /app/node_modules.
 
-                                    Upstream    | Debian
-                                    nodejs.org  | debian-13
-    $ ln -s /usr/share/nodejs/foo /usr/share/nodejs/bar /app/node_modules/
-    app: import 'foo'               works       | works
-    app: import 'bar' (needs foo)   fails       | works
-    same, with --preserve-symlinks  works       | works
+                                    Upstream    │ Debian
+                                    nodejs.org  │ debian-13
+    ── $ ln -s /usr/share/nodejs/foo /usr/share/nodejs/bar /app/node_modules/ ──
+    app: import 'foo'               ✓ works     │ ✓ works
+    app: import 'bar' (needs foo)   ✗ fails     │ ✓ works
+    same, with --preserve-symlinks  ✓ works     │ ✓ works
 
-    Node.js follows /app/node_modules/bar to /usr/share/nodejs/bar, and
-    looks for bar's own dependencies from there, not from /app. Upstream
-    Node.js doesn't find foo from there, unless --preserve-symlinks keeps
-    the search in /app. On Debian and Ubuntu, the shipped
-    /usr/share/node_modules link finds it.
+    │ Node.js follows /app/node_modules/bar to /usr/share/nodejs/bar, and
+    │ looks for bar's own dependencies from there, not from /app. Upstream
+    │ Node.js doesn't find foo from there, unless --preserve-symlinks keeps
+    │ the search in /app. On Debian and Ubuntu, the shipped
+    │ /usr/share/node_modules link finds it.
 
-Every result matches what the examples expect.
+✓ Every result matches what the examples expect.
