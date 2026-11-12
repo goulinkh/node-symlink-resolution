@@ -1,7 +1,7 @@
-# 03: Per-package dependency links
+# 03: Per-package links
 
-Instead of one shared link, each package ships its own `node_modules`
-directory, with one link for each package it depends on:
+Each package gets its own `node_modules` directory, with one link for each of
+its dependencies. `bar` depends on `foo`, so:
 
 ```sh
 mkdir -p /usr/share/nodejs/bar/node_modules
@@ -10,39 +10,47 @@ ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo
 
 ## Layout
 
+The contents of [`files/`](files), as copied into `/`, plus the link:
+
 ```
-root/usr/share/nodejs/
+/usr/share/nodejs/
 ├── foo/
 │   ├── package.json
-│   └── index.js       module.exports = 'hello from foo';
+│   └── index.js           module.exports = 'hello from foo';
+├── baz/
+│   ├── package.json
+│   └── index.js           module.exports = 'hello from baz';
 └── bar/
-    ├── index.cjs      const foo = require('foo');
-    ├── index.mjs      import foo from 'foo';
+    ├── index.cjs          const foo = require('foo');
+    ├── index.mjs          import foo from 'foo';
+    ├── uses-baz.mjs       import baz from 'baz';
     └── node_modules/
-        └── foo -> ../../foo
+        └── foo -> ../../foo        (created by the step)
 ```
 
-## Run
+`baz` is installed too, but `bar` doesn't depend on it and has no link to it.
 
-```sh
-./run.sh
-```
+## Results
 
-```
-$ node usr/share/nodejs/bar/index.cjs
-  bar (CommonJS) loaded: hello from foo
-  => works, as expected
-
-$ node usr/share/nodejs/bar/index.mjs
-  bar (ESM) loaded: hello from foo
-  => works, as expected
-```
+| Command | nodejs.org | fedora-43 | debian-13 | ubuntu-26.04 |
+| :- | :- | :- | :- | :- |
+| `node /usr/share/nodejs/bar/index.mjs` | fails | fails | works | works |
+| *Step: `ln -s ../../foo /usr/share/nodejs/bar/node_modules/foo`* | | | | |
+| `node /usr/share/nodejs/bar/index.cjs` | works | works | works | works |
+| `node /usr/share/nodejs/bar/index.mjs` | works | works | works | works |
+| `node /usr/share/nodejs/bar/uses-baz.mjs` | fails | fails | works | works |
 
 ## What it shows
 
-The first directory Node.js searches, `usr/share/nodejs/bar/node_modules`,
-contains `foo`. This works for both CommonJS and ESM, with no environment
-variable.
+- The first directory Node.js searches, `/usr/share/nodejs/bar/node_modules`,
+  contains `foo`. This works for both `require()` and `import`, with no
+  environment variable, on every runtime.
+- With upstream Node.js, `bar` sees only the packages it links, so `baz` is
+  not found.
+- On Debian and Ubuntu, the shipped `/usr/share/node_modules` link (see
+  [example 02](../02-shared-node-modules)) makes every package visible to
+  `bar`, with or without its own links. A missing link therefore goes
+  unnoticed there, and only shows up on other runtimes.
 
 ## Trade-offs
 

@@ -4,28 +4,31 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    # Weekly, to notice when a new Node.js release changes the results.
+    - cron: '0 6 * * 1'
 
 jobs:
-  nodejs-org:
-    name: Node.js ${{ matrix.node }}
+  examples:
+    name: ./run.sh with ${{ matrix.engine }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24, 26]
+        engine: [docker, podman]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-      - run: ./run-all.sh
-
-  ubuntu-nodejs:
-    name: Ubuntu's nodejs package
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y nodejs
-      # The runner image has its own Node.js in /usr/local/bin; use Ubuntu's.
-      - run: PATH=/usr/bin:$PATH ./run-all.sh
-      - run: /usr/bin/node -p "require('module').globalPaths"
+      - name: Run the examples
+        env:
+          CONTAINER_ENGINE: ${{ matrix.engine }}
+        # "shell: bash" adds pipefail, so a failure isn't hidden by tee.
+        shell: bash
+        run: ./run.sh -v | tee output.txt
+      - name: Add the output to the job summary
+        if: always()
+        run: |
+          {
+            echo '```'
+            sed 's/ *$//' output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
